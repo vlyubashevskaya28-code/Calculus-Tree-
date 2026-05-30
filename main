@@ -1,0 +1,515 @@
+
+import math
+import random
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.patches import Circle, Ellipse
+from matplotlib.animation import FuncAnimation
+
+
+# CONFIGURATION
+
+random.seed(7)
+
+# Visual style
+BLOSSOM_COLORS = [
+    '#FFD1DC', '#FFB6C1', '#FF9FB5', '#FF85A1',
+    '#FF6F91', '#F06292', '#EC407A', '#D81B60',
+]
+ROOT_COLOR_BRANCH = '#6D4C41'        # roots (warm brown)
+ROOT_TEXT_COLOR   = '#3E2723'        # root equation text (deep brown)
+TRUNK_COLOR       = '#3A2A2A'
+GROUND_COLOR      = '#8D6E63'        # subtle soil tone
+SKY_COLOR         = '#FFFAFA'        # very faint pink-white "sky"
+FLOWER_CENTER     = '#FFD54F'        # warm yellow stamen
+HIGHLIGHT_COLOR   = '#C2185B'
+
+FLOWER_SIZE = 0.18                   # size of a fully bloomed flower
+
+# Animation speed
+BRANCH_BATCH        = 4      # tree branches drawn per frame
+ROOT_BATCH          = 3      # root branches drawn per frame
+ROOT_EQ_BATCH       = 1      # root equations placed per frame
+N_BLOOM_FRAMES      = 6      # frames it takes one flower to fully bloom
+FLOWER_STAGGER      = 2      # frames between consecutive flowers starting
+PAUSE_BEFORE_FLOWERS = 8     # frames between roots-done and bloom-start
+END_PAUSE           = 40     # frames to hold the final image
+FRAME_INTERVAL_MS   = 35     # delay between frames (lower = faster)
+
+
+
+# EQUATIONS — AP CALCULUS 
+
+
+
+AB_EQUATIONS = [
+    # --- Limits & Continuity ---
+    r"$\lim_{x \to a} f(x) = L$",
+    r"$\lim_{x \to 0} \frac{\sin x}{x} = 1$",
+    r"$\lim_{x \to 0} \frac{1 - \cos x}{x} = 0$",
+    r"$\lim_{n \to \infty} \left(1 + \frac{1}{n}\right)^n = e$",
+    r"$\lim_{x \to a^-} f(x) = \lim_{x \to a^+} f(x)$",
+    r"$\text{IVT}$",
+    r"$\text{Squeeze Thm}$",
+
+    # --- Derivative definition & rules ---
+    r"$f'(x) = \lim_{h \to 0} \frac{f(x+h)-f(x)}{h}$",
+    r"$\frac{d}{dx}[x^n] = nx^{n-1}$",
+    r"$\frac{d}{dx}[c] = 0$",
+    r"$\frac{d}{dx}[c \cdot f] = c \cdot f'$",
+    r"$(fg)' = f'g + fg'$",
+    r"$\left(\frac{f}{g}\right)' = \frac{f'g - fg'}{g^2}$",
+    r"$\frac{d}{dx}f(g(x)) = f'(g)\cdot g'$",
+
+    # --- Derivatives of specific functions ---
+    r"$\frac{d}{dx}[\sin x] = \cos x$",
+    r"$\frac{d}{dx}[\cos x] = -\sin x$",
+    r"$\frac{d}{dx}[\tan x] = \sec^2 x$",
+    r"$\frac{d}{dx}[e^x] = e^x$",
+    r"$\frac{d}{dx}[\ln x] = \frac{1}{x}$",
+    r"$\frac{d}{dx}[a^x] = a^x \ln a$",
+    r"$\frac{d}{dx}[\arcsin x] = \frac{1}{\sqrt{1-x^2}}$",
+    r"$\frac{d}{dx}[\arctan x] = \frac{1}{1+x^2}$",
+
+    # --- Applications of derivatives ---
+    r"$f'(c) = 0$",
+    r"$f''(x) > 0 \Rightarrow \text{concave up}$",
+    r"$\text{MVT: } f'(c) = \frac{f(b)-f(a)}{b-a}$",
+    r"$\text{Rolle's Thm}$",
+    r"$\lim \frac{f}{g} = \lim \frac{f'}{g'}$",
+    r"$L(x) = f(a) + f'(a)(x-a)$",
+    r"$v(t) = s'(t)$",
+    r"$a(t) = v'(t) = s''(t)$",
+
+    # --- Antiderivatives & basic integrals ---
+    r"$\int f(x)\,dx = F(x) + C$",
+    r"$\int x^n\,dx = \frac{x^{n+1}}{n+1} + C$",
+    r"$\int \frac{1}{x}\,dx = \ln|x| + C$",
+    r"$\int e^x\,dx = e^x + C$",
+    r"$\int \sin x\,dx = -\cos x + C$",
+    r"$\int \cos x\,dx = \sin x + C$",
+    r"$\int \sec^2 x\,dx = \tan x + C$",
+
+    # --- Fundamental Theorem of Calculus ---
+    r"$\frac{d}{dx}\int_a^x f(t)\,dt = f(x)$",
+    r"$\int_a^b f(x)\,dx = F(b) - F(a)$",
+
+    # --- Riemann sums & approximations ---
+    r"$\sum_{i=1}^{n} f(x_i)\,\Delta x$",
+    r"$\int_a^b \approx \frac{\Delta x}{2}(y_0 + 2y_1 + \cdots + y_n)$",
+
+    # --- Applications of integration ---
+    r"$\bar{f} = \frac{1}{b-a}\int_a^b f(x)\,dx$",
+    r"$A = \int_a^b [f(x) - g(x)]\,dx$",
+    r"$V = \pi\int_a^b [f(x)]^2\,dx$",
+    r"$V = \pi\int_a^b ([R]^2 - [r]^2)\,dx$",
+    r"$s(t) = \int v(t)\,dt$",
+
+    # --- Differential equations ---
+    r"$\frac{dy}{dt} = ky \Rightarrow y = Ce^{kt}$",
+    r"$\frac{dy}{dx} = f(x)g(y)$",
+    r"$\frac{dy}{dt} = ky\left(1 - \frac{y}{L}\right)$",
+]
+
+
+
+#Prerequisite math (algebra, geometry, precalc)
+
+
+ROOT_EQUATIONS = [
+    # --- Algebra ---
+    r"$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$",
+    r"$(a+b)^2 = a^2 + 2ab + b^2$",
+    r"$a^2 - b^2 = (a-b)(a+b)$",
+    r"$x^m \cdot x^n = x^{m+n}$",
+    r"$(x^m)^n = x^{mn}$",
+    r"$x^{-n} = \frac{1}{x^n}$",
+    r"$x^{m/n} = \sqrt[n]{x^m}$",
+    r"$\log(ab) = \log a + \log b$",
+    r"$\log(a^n) = n\log a$",
+    r"$\ln(e^x) = x$",
+    r"$e^{a+b} = e^a \cdot e^b$",
+    r"$\log_b x = \frac{\ln x}{\ln b}$",
+
+    # --- Geometry ---
+    r"$a^2 + b^2 = c^2$",
+    r"$A = \pi r^2$",
+    r"$C = 2\pi r$",
+    r"$V = \frac{4}{3}\pi r^3$",
+    r"$V = \pi r^2 h$",
+    r"$V = \frac{1}{3}\pi r^2 h$",
+    r"$A = \frac{1}{2}bh$",
+    r"$d = \sqrt{(x_2-x_1)^2 + (y_2-y_1)^2}$",
+    r"$M = \left(\frac{x_1+x_2}{2}, \frac{y_1+y_2}{2}\right)$",
+
+    # --- Precalculus / Trig ---
+    r"$\sin^2 x + \cos^2 x = 1$",
+    r"$\sin(2x) = 2\sin x \cos x$",
+    r"$\cos(2x) = \cos^2 x - \sin^2 x$",
+    r"$\tan x = \frac{\sin x}{\cos x}$",
+    r"$1 + \tan^2 x = \sec^2 x$",
+    r"$(f \circ g)(x) = f(g(x))$",
+    r"$f^{-1}(f(x)) = x$",
+    r"$y = a\sin(b(x-c)) + d$",
+    r"$a_n = a_1 + (n-1)d$",
+    r"$a_n = a_1 \cdot r^{n-1}$",
+]
+
+
+
+# BUILD THE TREE (above ground)
+
+branch_lines = []       # (x1, y1, x2, y2, lw)
+branch_tips  = []       # (x, y)
+mid_points   = []       # (x, y) — for the highlighted equation
+
+
+def build_tree(x, y, length, angle, depth, max_depth):
+    if depth > max_depth:
+        return
+    x_end = x + length * math.cos(angle)
+    y_end = y + length * math.sin(angle)
+    lw = max(0.7, (max_depth - depth + 1) * 0.85)
+    branch_lines.append((x, y, x_end, y_end, lw))
+
+    if depth == max_depth or depth == max_depth - 1:
+        branch_tips.append((x_end, y_end))
+    elif 2 <= depth <= max_depth - 3:
+        mid_points.append(((x + x_end) / 2, (y + y_end) / 2))
+
+    branch_angle = math.radians(random.uniform(22, 32))
+    shrink = random.uniform(0.68, 0.78)
+    new_length = length * shrink
+    build_tree(x_end, y_end, new_length, angle + branch_angle,
+               depth + 1, max_depth)
+    build_tree(x_end, y_end, new_length, angle - branch_angle,
+               depth + 1, max_depth)
+
+
+# Trunk starts at ground level (y=0) and grows up
+TRUNK_BASE_Y = 0.0
+build_tree(x=0, y=TRUNK_BASE_Y, length=2.8,
+           angle=math.pi / 2, depth=0, max_depth=8)
+
+
+
+# BUILD THE ROOTS (below ground)
+
+root_lines = []     # (x1, y1, x2, y2, lw)
+root_tips  = []     # (x, y) — places where root equations sit
+
+def build_roots(x, y, length, angle, depth, max_depth):
+    if depth > max_depth:
+        return
+    x_end = x + length * math.cos(angle)
+    y_end = y + length * math.sin(angle)
+    lw = max(0.5, (max_depth - depth + 1) * 0.70)
+    root_lines.append((x, y, x_end, y_end, lw))
+
+    if depth >= max_depth - 1:
+        root_tips.append((x_end, y_end))
+
+    # Roots spread out more horizontally than tree branches.
+    # A wider angle gives the classic spreading-root look.
+    branch_angle = math.radians(random.uniform(28, 42))
+    shrink = random.uniform(0.72, 0.82)
+    new_length = length * shrink
+    build_roots(x_end, y_end, new_length, angle + branch_angle,
+                depth + 1, max_depth)
+    build_roots(x_end, y_end, new_length, angle - branch_angle,
+                depth + 1, max_depth)
+
+
+# Roots grow DOWN (angle = -pi/2) from the trunk base, slightly shorter
+# and less deep than the canopy so they look like roots, not a mirror tree.
+build_roots(x=0, y=TRUNK_BASE_Y, length=1.4,
+            angle=-math.pi / 2, depth=0, max_depth=6)
+
+
+
+# FIGURE SETUP
+
+all_x = [s[0] for s in branch_lines + root_lines] + \
+        [s[2] for s in branch_lines + root_lines]
+all_y = [s[1] for s in branch_lines + root_lines] + \
+        [s[3] for s in branch_lines + root_lines]
+x_min, x_max = min(all_x), max(all_x)
+y_min, y_max = min(all_y), max(all_y)
+
+fig, ax = plt.subplots(figsize=(12, 14), dpi=100)
+ax.set_xlim(x_min - 1.5, x_max + 1.5)
+ax.set_ylim(y_min - 1.0, y_max + 1.0)
+ax.set_aspect('equal')
+ax.axis('off')
+fig.patch.set_facecolor(SKY_COLOR)
+ax.set_facecolor(SKY_COLOR)
+
+# Draw a soft "ground line" at y=0 to separate canopy/trunk from roots
+ground_x = [x_min - 1.5, x_max + 1.5]
+ax.plot(ground_x, [TRUNK_BASE_Y, TRUNK_BASE_Y],
+        color=GROUND_COLOR, linewidth=1.5, alpha=0.4,
+        linestyle='--', zorder=1)
+
+
+
+# FLOWER DRAWING
+
+def draw_flower(x, y, size, openness, color):
+
+
+    artists = []
+    if openness <= 0:
+        return artists
+
+    # Stage 1 (0.0 - 0.25): tiny bud growing
+    if openness < 0.25:
+        bud_size = size * 0.25 * (openness / 0.25)
+        c = Circle((x, y), bud_size, color='#8B4060',
+                   zorder=15, alpha=0.9)
+        artists.append(ax.add_patch(c))
+        return artists
+
+    # Stage 2+ (0.25 - 1.0): petals open up
+    petal_scale = (openness - 0.25) / 0.75  # 0 -> 1
+    petal_distance = size * 0.5 * petal_scale
+    petal_w = size * 0.55 * (0.4 + 0.6 * petal_scale)
+    petal_h = size * 0.4 * (0.4 + 0.6 * petal_scale)
+
+    # 5 petals at 72° intervals
+    for i in range(5):
+        angle_deg = i * 72 - 90  # start with one petal pointing up
+        px = x + petal_distance * math.cos(math.radians(angle_deg))
+        py = y + petal_distance * math.sin(math.radians(angle_deg))
+        # Petal is an ellipse oriented outward from center
+        petal = Ellipse((px, py), width=petal_w, height=petal_h,
+                        angle=angle_deg, facecolor=color,
+                        edgecolor=color, alpha=0.85, zorder=15)
+        artists.append(ax.add_patch(petal))
+
+    # Yellow center (stamen) appears once flower is mostly open
+    if openness > 0.55:
+        stamen_size = size * 0.13 * ((openness - 0.55) / 0.45)
+        c = Circle((x, y), stamen_size,
+                   color=FLOWER_CENTER, zorder=16)
+        artists.append(ax.add_patch(c))
+
+    return artists
+
+
+
+# PLACE FLOWERS (one equation per flower)
+
+random.shuffle(AB_EQUATIONS)
+random.shuffle(branch_tips)
+
+flowers = []  # each: dict(x, y, equation, color, bloom_start, fontsize, eq_offset)
+
+positions_used = []
+
+def too_close(x, y, others, min_dist=0.55):
+    for (px, py) in others:
+        if math.hypot(x - px, y - py) < min_dist:
+            return True
+    return False
+
+
+eq_idx = 0
+for (x, y) in branch_tips:
+    if eq_idx >= len(AB_EQUATIONS):
+        break
+    if too_close(x, y, positions_used, min_dist=0.42):
+        continue
+
+    flowers.append({
+        'x': x,
+        'y': y,
+        'equation': AB_EQUATIONS[eq_idx],
+        'color': random.choice(BLOSSOM_COLORS),
+        'fontsize': random.choice([8, 8, 9, 9, 10]),
+        'eq_rotation': random.uniform(-12, 12),
+        'eq_dy': random.uniform(0.24, 0.36),  # how far below flower
+    })
+    positions_used.append((x, y))
+    eq_idx += 1
+
+# Stagger bloom times — flowers near the trunk bloom first (closer to the y-axis),
+# outer flowers later, for a nice "wave outward" effect.
+flowers.sort(key=lambda f: math.hypot(f['x'], f['y'] - TRUNK_BASE_Y))
+for i, fl in enumerate(flowers):
+    fl['bloom_start'] = i * FLOWER_STAGGER
+
+
+
+# PLACE ROOT EQUATIONS
+
+random.shuffle(ROOT_EQUATIONS)
+random.shuffle(root_tips)
+
+root_eq_placements = []  # (x, y, equation, fontsize, rotation)
+root_positions = []
+ridx = 0
+for (x, y) in root_tips:
+    if ridx >= len(ROOT_EQUATIONS):
+        break
+    if too_close(x, y, root_positions, min_dist=0.55):
+        continue
+    jx = x + random.uniform(-0.18, 0.18)
+    jy = y + random.uniform(-0.18, 0.05)  # slightly below root tip
+    root_eq_placements.append((
+        jx, jy, ROOT_EQUATIONS[ridx],
+        random.choice([8, 8, 9, 9, 10]),
+        random.uniform(-12, 12),
+    ))
+    root_positions.append((x, y))
+    ridx += 1
+
+
+
+# ANIMATION TIMELINE
+
+N_BRANCHES = len(branch_lines)
+N_ROOTS    = len(root_lines)
+N_FLOWERS  = len(flowers)
+N_ROOT_EQS = len(root_eq_placements)
+
+# Frame counts for each phase
+n_root_frames     = (N_ROOTS    + ROOT_BATCH    - 1) // ROOT_BATCH
+n_branch_frames   = (N_BRANCHES + BRANCH_BATCH  - 1) // BRANCH_BATCH
+n_root_eq_frames  = (N_ROOT_EQS + ROOT_EQ_BATCH - 1) // ROOT_EQ_BATCH
+
+# Flower phase: the last flower starts at (N_FLOWERS-1)*STAGGER,
+# and needs N_BLOOM_FRAMES + 1 (for equation) more frames to finish.
+n_flower_frames = (N_FLOWERS - 1) * FLOWER_STAGGER + N_BLOOM_FRAMES + 2
+
+# Timeline checkpoints
+T0_ROOTS_START      = 0
+T1_BRANCHES_START   = T0_ROOTS_START + n_root_frames
+T2_ROOT_EQS_START   = T1_BRANCHES_START + n_branch_frames
+T3_FLOWERS_START    = T2_ROOT_EQS_START + n_root_eq_frames + PAUSE_BEFORE_FLOWERS
+T4_END_PAUSE_START  = T3_FLOWERS_START + n_flower_frames
+
+TOTAL_FRAMES = T4_END_PAUSE_START + END_PAUSE
+
+
+# Per-flower state (so we know when to redraw vs leave alone)
+flower_state = [
+    {'artists': [], 'last_openness': -1, 'equation_artist': None}
+    for _ in flowers
+]
+
+# Track drawn artists so blit / re-render works
+drawn_artists = []
+
+
+def update(frame):
+    # --- PHASE 1: roots grow (downward) ---
+    if T0_ROOTS_START <= frame < T1_BRANCHES_START:
+        local = frame - T0_ROOTS_START
+        start_idx = local * ROOT_BATCH
+        end_idx = min(start_idx + ROOT_BATCH, N_ROOTS)
+        for i in range(start_idx, end_idx):
+            x1, y1, x2, y2, lw = root_lines[i]
+            line, = ax.plot([x1, x2], [y1, y2],
+                            color=ROOT_COLOR_BRANCH, linewidth=lw,
+                            solid_capstyle='round', zorder=3)
+            drawn_artists.append(line)
+
+    # --- PHASE 2: trunk + branches grow (upward) ---
+    elif T1_BRANCHES_START <= frame < T2_ROOT_EQS_START:
+        local = frame - T1_BRANCHES_START
+        start_idx = local * BRANCH_BATCH
+        end_idx = min(start_idx + BRANCH_BATCH, N_BRANCHES)
+        for i in range(start_idx, end_idx):
+            x1, y1, x2, y2, lw = branch_lines[i]
+            line, = ax.plot([x1, x2], [y1, y2],
+                            color=TRUNK_COLOR, linewidth=lw,
+                            solid_capstyle='round', zorder=5)
+            drawn_artists.append(line)
+
+    # --- PHASE 3: root equations appear ---
+    elif T2_ROOT_EQS_START <= frame < T3_FLOWERS_START:
+        local = frame - T2_ROOT_EQS_START
+        if local < n_root_eq_frames:
+            start_idx = local * ROOT_EQ_BATCH
+            end_idx = min(start_idx + ROOT_EQ_BATCH, N_ROOT_EQS)
+            for i in range(start_idx, end_idx):
+                rx, ry, text, fs, rot = root_eq_placements[i]
+                t = ax.text(rx, ry, text,
+                            fontsize=fs, rotation=rot,
+                            ha='center', va='center',
+                            color=ROOT_TEXT_COLOR, zorder=8,
+                            alpha=0.85)
+                drawn_artists.append(t)
+
+    # --- PHASE 4: flowers bloom & equations reveal ---
+    elif T3_FLOWERS_START <= frame < T4_END_PAUSE_START:
+        local = frame - T3_FLOWERS_START
+
+        for i, fl in enumerate(flowers):
+            relative = local - fl['bloom_start']
+            state = flower_state[i]
+
+            if relative < 0:
+                # Not started yet
+                continue
+
+            if relative <= N_BLOOM_FRAMES:
+                # Currently blooming — update flower drawing
+                openness = min(1.0, relative / N_BLOOM_FRAMES)
+
+                # Remove old artists for this flower
+                for a in state['artists']:
+                    try:
+                        a.remove()
+                    except ValueError:
+                        pass
+                state['artists'] = []
+
+                new_artists = draw_flower(fl['x'], fl['y'],
+                                          FLOWER_SIZE, openness, fl['color'])
+                state['artists'] = new_artists
+                drawn_artists.extend(new_artists)
+                state['last_openness'] = openness
+
+            elif relative == N_BLOOM_FRAMES + 1 and state['equation_artist'] is None:
+                # One frame after full bloom: reveal the equation
+                # Use a dark rose color for the text so it's readable
+                # against the white background while still feeling on-theme.
+                t = ax.text(
+                    fl['x'], fl['y'] - fl['eq_dy'],
+                    fl['equation'],
+                    fontsize=fl['fontsize'],
+                    rotation=fl['eq_rotation'],
+                    ha='center', va='top',
+                    color='#880E4F', zorder=20,
+                    fontweight='bold',
+                )
+                state['equation_artist'] = t
+                drawn_artists.append(t)
+
+    # --- PHASE 5: end pause (do nothing) ---
+
+    return drawn_artists
+
+
+# Build the animation
+ani = FuncAnimation(fig, update, frames=TOTAL_FRAMES,
+                    interval=FRAME_INTERVAL_MS, blit=False, repeat=False)
+
+plt.tight_layout()
+plt.show()
+
+# Once the window closes (or for headless rendering), ensure final
+# state is drawn before saving the still image.
+for f in range(TOTAL_FRAMES):
+    update(f)
+
+fig.savefig('calculus_tree_blooming.png', dpi=200,
+            bbox_inches='tight', facecolor=SKY_COLOR)
+print("Final still saved as calculus_tree_blooming.png")
+print(f"  Tree branches: {N_BRANCHES}")
+print(f"  Root branches: {N_ROOTS}")
+print(f"  Flowers (canopy equations): {N_FLOWERS}")
+print(f"  Root equations: {N_ROOT_EQS}")
+print(f"  Total animation frames: {TOTAL_FRAMES}")
+
